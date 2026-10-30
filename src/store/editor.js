@@ -74,10 +74,9 @@ export const useEditorStore = defineStore("editor", {
 
       const flowId = this.flow.id;
       this.saving = true;
+
       try {
         const saved = await api.saveFlow(this.activeFlowId, this.flow);
-        this.flow = saved;
-        this.original = saved;
         useUiStore().notify({ intent: "success", text: "Flow saved" });
         useFlowsStore().fetchFlows();
         if (this.flow?.id !== flowId) return;
