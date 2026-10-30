@@ -6,7 +6,7 @@
     <div class="body">
       <span class="type">{{ getStepTypeLabel(step.type) }}</span>
       <h3>{{ step.displayName }}</h3>
-      <p v-if="step.note" class="note" v-html="step.note" />
+      <p v-if="step.note" class="note" v-html="sanitizeNote(step.note)" />
     </div>
     <catnip-button
       class="remove"
@@ -23,7 +23,7 @@
 <script setup>
 import { useEditorStore } from "@/store/editor.js";
 import { getStepIcon, getStepTypeLabel } from "@/logic/stepTypes.js";
-
+import { sanitizeNote } from "@/logic/sanitize.js";
 defineProps({
   step: { type: Object, required: true }
 });
