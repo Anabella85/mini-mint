@@ -1,0 +1,14 @@
+// Design tokens, fonts and icons come from Catnip's CSS (see index.html).
+// Use --catnip-* tokens instead of hard-coded colors and sizes.
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--catnip-font-family-default, Inter, system-ui, sans-serif);
+  font-size: 14px;
+  color: var(--catnip-color-content-neutral-strongest);
+  background: var(--catnip-color-background-neutral-subtle);
+}

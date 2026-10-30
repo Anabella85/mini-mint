@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mini-mint</title>
+    <!--
+      Catnip, Signicat's design system, loaded from the public CDN (the npm packages are private).
+      Docs: https://catnip.signicat.com/components/index.html
+    -->
+    <link rel="stylesheet" href="https://static.signicat.com/catnip/css/1.0.5/styles.css" />
+    <link rel="stylesheet" href="https://static.signicat.com/catnip/components/1.0.10/foucPrevention.min.css" />
+    <!-- The standalone build still reads process.env.NODE_ENV (from its bundled Vue), which doesn't exist in the browser. -->
+    <script>
+      window.process = window.process || { env: { NODE_ENV: "production" } };
+    </script>
+    <script src="https://static.signicat.com/catnip/components/1.0.10/catnip-components.standalone.js" defer></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
