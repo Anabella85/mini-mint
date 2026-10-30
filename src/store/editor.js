@@ -12,6 +12,8 @@ import { useFlowsStore } from "./flows.js";
 import { useUiStore } from "./ui.js";
 
 let latestLoadId = 0;
+/** Deep copy, so the editable flow and the saved snapshot never share objects. */
+const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export const useEditorStore = defineStore("editor", {
   state: () => ({
@@ -54,9 +56,8 @@ export const useEditorStore = defineStore("editor", {
       try {
         const flow = await api.getFlow(flowId);
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
-
         this.flow = flow;
-        this.original = flow;
+        this.original = clone(flow);
         api.subscribe(flowId, (event) => this.handleRealtimeEvent(event));
       } catch (error) {
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
@@ -81,7 +82,7 @@ export const useEditorStore = defineStore("editor", {
         useFlowsStore().fetchFlows();
         if (this.flow?.id !== flowId) return;
         this.flow = saved;
-        this.original = saved;
+        this.original = clone(saved);
       } catch (error) {
         useUiStore().notify({
           intent: "danger",
@@ -93,7 +94,7 @@ export const useEditorStore = defineStore("editor", {
     },
 
     discard() {
-      this.flow = JSON.parse(JSON.stringify(this.original));
+      this.flow = clone(this.original);
       this.selectedStepId = null;
     },
 
