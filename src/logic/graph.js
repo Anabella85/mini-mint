@@ -42,7 +42,11 @@ export function getConnectionsTo(flow, stepId) {
 }
 
 function getTarget(flow, stepId, outcome) {
-  return flow.connections.find((c) => c.sourceStepId === stepId && c.outcome === outcome)?.targetStepId ?? null;
+  return (
+    flow.connections.find(
+      (c) => c.sourceStepId === stepId && c.outcome === outcome,
+    )?.targetStepId ?? null
+  );
 }
 
 /** The step nothing points at. */
@@ -71,7 +75,9 @@ export function buildTree(flow) {
       if (outcomes.length) {
         node.branches = {};
         outcomes.forEach((outcome) => {
-          node.branches[outcome] = buildSequence(getTarget(flow, step.id, outcome));
+          node.branches[outcome] = buildSequence(
+            getTarget(flow, step.id, outcome),
+          );
         });
       }
       sequence.push(node);
@@ -97,37 +103,67 @@ export function insertStep(flow, newStep, position = {}) {
 
   if (position.branch) {
     const { ifStepId, outcome } = position.branch;
-    const existing = flow.connections.find((c) => c.sourceStepId === ifStepId && c.outcome === outcome);
+    const existing = flow.connections.find(
+      (c) => c.sourceStepId === ifStepId && c.outcome === outcome,
+    );
     if (existing) {
-      flow.connections.push({ sourceStepId: newStep.id, targetStepId: existing.targetStepId, outcome: "Done" });
+      flow.connections.push({
+        sourceStepId: newStep.id,
+        targetStepId: existing.targetStepId,
+        outcome: "Done",
+      });
       existing.targetStepId = newStep.id;
     } else {
-      flow.connections.push({ sourceStepId: ifStepId, targetStepId: newStep.id, outcome });
+      flow.connections.push({
+        sourceStepId: ifStepId,
+        targetStepId: newStep.id,
+        outcome,
+      });
     }
     return;
   }
 
   if (position.afterStepId) {
-    const existing = flow.connections.find((c) => c.sourceStepId === position.afterStepId && c.outcome === "Done");
+    const existing = flow.connections.find(
+      (c) => c.sourceStepId === position.afterStepId && c.outcome === "Done",
+    );
     if (existing) {
-      flow.connections.push({ sourceStepId: newStep.id, targetStepId: existing.targetStepId, outcome: "Done" });
+      flow.connections.push({
+        sourceStepId: newStep.id,
+        targetStepId: existing.targetStepId,
+        outcome: "Done",
+      });
       existing.targetStepId = newStep.id;
     } else {
-      flow.connections.push({ sourceStepId: position.afterStepId, targetStepId: newStep.id, outcome: "Done" });
+      flow.connections.push({
+        sourceStepId: position.afterStepId,
+        targetStepId: newStep.id,
+        outcome: "Done",
+      });
     }
     return;
   }
 
   // beginning of the flow
-  const entryId = flow.steps.length > 1 ? getEntryStepId({ ...flow, steps: flow.steps.slice(0, -1) }) : null;
-  if (entryId) flow.connections.push({ sourceStepId: newStep.id, targetStepId: entryId, outcome: "Done" });
+  const entryId =
+    flow.steps.length > 1
+      ? getEntryStepId({ ...flow, steps: flow.steps.slice(0, -1) })
+      : null;
+  if (entryId)
+    flow.connections.push({
+      sourceStepId: newStep.id,
+      targetStepId: entryId,
+      outcome: "Done",
+    });
 }
 
 /** True when the step can be removed without first emptying its branches. */
 export function canRemoveStep(flow, stepId) {
   const step = getStep(flow, stepId);
   if (!step) return false;
-  return getBranchOutcomes(step).every((outcome) => !getTarget(flow, stepId, outcome));
+  return getBranchOutcomes(step).every(
+    (outcome) => !getTarget(flow, stepId, outcome),
+  );
 }
 
 /**
@@ -136,10 +172,20 @@ export function canRemoveStep(flow, stepId) {
  */
 export function removeStep(flow, stepId) {
   const incoming = getConnectionsTo(flow, stepId);
-  const outgoing = getConnectionsFrom(flow, stepId).find((c) => c.outcome === "Done");
+  const outgoing = getConnectionsFrom(flow, stepId).find(
+    (c) => c.outcome === "Done",
+  );
 
   flow.steps = flow.steps.filter((s) => s.id !== stepId);
-  flow.connections = flow.connections.filter((c) => c.sourceStepId !== stepId && c.targetStepId !== stepId);
+  // flow.connections = flow.connections.filter((c) => c.sourceStepId !== stepId && c.targetStepId !== stepId);
+  flow.connections = flow.connections
+    .filter((c) => c.sourceStepId !== stepId)
+    .map((c) =>
+      c.targetStepId === stepId && outgoing
+        ? { ...c, targetStepId: outgoing.targetStepId }
+        : c,
+    )
+    .filter(c =>c.targetStepId !== stepId);
 
   if (outgoing) {
     incoming.forEach((c) => {

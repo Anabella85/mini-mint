@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { buildTree, canRemoveStep, insertStep, removeStep } from "@/logic/graph.js";
+import {
+  buildTree,
+  canRemoveStep,
+  insertStep,
+  removeStep,
+} from "@/logic/graph.js";
 
-const step = (id, type = "SendEmail") => ({ id, type, displayName: id, properties: {} });
-const done = (sourceStepId, targetStepId) => ({ sourceStepId, targetStepId, outcome: "Done" });
+const step = (id, type = "SendEmail") => ({
+  id,
+  type,
+  displayName: id,
+  properties: {},
+});
+const done = (sourceStepId, targetStepId) => ({
+  sourceStepId,
+  targetStepId,
+  outcome: "Done",
+});
 
 /**
  *  a -> if --True--> t1 -> t2
@@ -11,14 +25,21 @@ const done = (sourceStepId, targetStepId) => ({ sourceStepId, targetStepId, outc
  */
 function branchedFlow() {
   return {
-    steps: [step("a"), step("if", "If"), step("t1"), step("t2"), step("f1"), step("z")],
+    steps: [
+      step("a"),
+      step("if", "If"),
+      step("t1"),
+      step("t2"),
+      step("f1"),
+      step("z"),
+    ],
     connections: [
       done("a", "if"),
       { sourceStepId: "if", targetStepId: "t1", outcome: "True" },
       done("t1", "t2"),
       { sourceStepId: "if", targetStepId: "f1", outcome: "False" },
-      done("if", "z")
-    ]
+      done("if", "z"),
+    ],
   };
 }
 
@@ -48,7 +69,9 @@ describe("insertStep", () => {
 
   it("inserts at the start of a branch", () => {
     const flow = branchedFlow();
-    insertStep(flow, step("new"), { branch: { ifStepId: "if", outcome: "False" } });
+    insertStep(flow, step("new"), {
+      branch: { ifStepId: "if", outcome: "False" },
+    });
     expect(ids(buildTree(flow)[1].branches.False)).toEqual(["new", "f1"]);
   });
 
@@ -72,10 +95,55 @@ describe("removeStep", () => {
     expect(ids(buildTree(flow)[1].branches.True)).toEqual(["t1"]);
   });
 
+  // The original version of this test expected outcome "Done", which is the bug from report #1.
   it("reconnects the If to the next step after removing the first branch step", () => {
     const flow = branchedFlow();
     removeStep(flow, "t1");
-    expect(flow.connections).toContainEqual({ sourceStepId: "if", targetStepId: "t2", outcome: "Done" });
+    expect(flow.connections).toContainEqual({
+      sourceStepId: "if",
+      targetStepId: "t2",
+      outcome: "True",
+    });
+    const tree = buildTree(flow);
+    expect(ids(tree)).toEqual(["a", "if", "z"]);
+    expect(ids(tree[1].branches.True)).toEqual(["t2"]);
+  });
+
+  it("removes the only step of a branch, leaving the branch empty", () => {
+    const flow = branchedFlow();
+    removeStep(flow, "f1");
+    expect(buildTree(flow)[1].branches.False).toEqual([]);
+    expect(
+      flow.connections.some(
+        (c) => c.sourceStepId === "if" && c.outcome === "False",
+      ),
+    ).toBe(false);
+  });
+
+  it("removes a step in the middle of a branch", () => {
+    const flow = branchedFlow();
+    insertStep(flow, step("t3"), { afterStepId: "t2" });
+    removeStep(flow, "t2");
+    expect(ids(buildTree(flow)[1].branches.True)).toEqual(["t1", "t3"]);
+  });
+
+  it("removes the merge step of an If and keeps the Done connection", () => {
+    const flow = branchedFlow();
+    insertStep(flow, step("end"), { afterStepId: "z" });
+    removeStep(flow, "z");
+    expect(ids(buildTree(flow))).toEqual(["a", "if", "end"]);
+  });
+
+  it("keeps the incoming connection's other fields when removing a step", () => {
+    const flow = branchedFlow();
+    flow.connections.find((c) => c.targetStepId === "t1").label = "Norwegian";
+    removeStep(flow, "t1");
+    expect(flow.connections).toContainEqual({
+      sourceStepId: "if",
+      targetStepId: "t2",
+      outcome: "True",
+      label: "Norwegian",
+    });
   });
 
   it("only allows removing an If when its branches are empty", () => {
