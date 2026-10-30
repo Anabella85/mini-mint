@@ -40,6 +40,47 @@ beforeEach(() => {
   setActivePinia(createPinia());
 });
 
+describe("dirty state (#3)", () => {
+  it("is clean after loading and dirty after an edit", async () => {
+    const editor = useEditorStore();
+    editor.openFlow("a");
+    respond(0, makeFlow("a", "Flow A"));
+    await flush();
+
+    expect(editor.isDirty).toBe(false);
+    editor.flow.steps[0].displayName = "Changed";
+    expect(editor.isDirty).toBe(true);
+  });
+
+  it("discard restores the loaded flow", async () => {
+    const editor = useEditorStore();
+    editor.openFlow("a");
+    respond(0, makeFlow("a", "Flow A"));
+    await flush();
+
+    editor.flow.steps[0].displayName = "Changed";
+    editor.discard();
+    expect(editor.flow.steps[0].displayName).toBe("Email");
+    expect(editor.isDirty).toBe(false);
+  });
+
+  it("is clean after saving, and dirty again after the next edit", async () => {
+    const editor = useEditorStore();
+    editor.openFlow("a");
+    respond(0, makeFlow("a", "Flow A"));
+    await flush();
+
+    editor.flow.steps[0].displayName = "Changed";
+    editor.save();
+    respond(1, { ...editor.flow, version: 2 });
+    await flush();
+
+    expect(editor.isDirty).toBe(false);
+    editor.flow.steps[0].displayName = "Changed again";
+    expect(editor.isDirty).toBe(true);
+  });
+});
+
 describe("switching flows quickly (#2)", () => {
   it("ignores a response that arrives after a newer flow was opened", async () => {
     const editor = useEditorStore();
