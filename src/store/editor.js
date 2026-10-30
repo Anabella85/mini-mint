@@ -1,9 +1,17 @@
 import { defineStore } from "pinia";
 import { api } from "@/api";
-import { buildTree, canRemoveStep, getStep, insertStep, removeStep } from "@/logic/graph.js";
+import {
+  buildTree,
+  canRemoveStep,
+  getStep,
+  insertStep,
+  removeStep,
+} from "@/logic/graph.js";
 import { STEP_TYPES } from "@/logic/stepTypes.js";
 import { useFlowsStore } from "./flows.js";
 import { useUiStore } from "./ui.js";
+
+let latestLoadId = 0;
 
 export const useEditorStore = defineStore("editor", {
   state: () => ({
@@ -12,37 +20,59 @@ export const useEditorStore = defineStore("editor", {
     original: null,
     loading: false,
     saving: false,
-    selectedStepId: null
+    selectedStepId: null,
   }),
 
   getters: {
     tree: (state) => (state.flow ? buildTree(state.flow) : []),
-    selectedStep: (state) => (state.flow && state.selectedStepId ? getStep(state.flow, state.selectedStepId) : null),
-    isDirty: (state) => !!state.flow && JSON.stringify(state.flow) !== JSON.stringify(state.original)
+    selectedStep: (state) =>
+      state.flow && state.selectedStepId
+        ? getStep(state.flow, state.selectedStepId)
+        : null,
+    isDirty: (state) =>
+      !!state.flow &&
+      JSON.stringify(state.flow) !== JSON.stringify(state.original),
   },
 
   actions: {
     async openFlow(flowId) {
       if (flowId === this.activeFlowId) return;
-      if (this.isDirty && !window.confirm("You have unsaved changes. Discard them?")) return;
+      if (
+        this.isDirty &&
+        !window.confirm("You have unsaved changes. Discard them?")
+      )
+        return;
+
+      const requestId = ++latestLoadId;
 
       this.activeFlowId = flowId;
       this.selectedStepId = null;
+      this.flow = null;
       this.loading = true;
+      this.original = null;
+
       try {
         const flow = await api.getFlow(flowId);
+        if (requestId !== latestLoadId) return; // ignore if a newer request has been made
+
         this.flow = flow;
         this.original = flow;
         api.subscribe(flowId, (event) => this.handleRealtimeEvent(event));
       } catch (error) {
-        useUiStore().notify({ intent: "danger", text: `Could not load flow: ${error.message}` });
+        if (requestId !== latestLoadId) return; // ignore if a newer request has been made
+        useUiStore().notify({
+          intent: "danger",
+          text: `Could not load flow: ${error.message}`,
+        });
       } finally {
-        this.loading = false;
+        if (requestId === latestLoadId) this.loading = false;
       }
     },
 
     async save() {
       if (!this.flow) return;
+
+      const flowId = this.flow.id;
       this.saving = true;
       try {
         const saved = await api.saveFlow(this.activeFlowId, this.flow);
@@ -50,8 +80,14 @@ export const useEditorStore = defineStore("editor", {
         this.original = saved;
         useUiStore().notify({ intent: "success", text: "Flow saved" });
         useFlowsStore().fetchFlows();
+        if (this.flow?.id !== flowId) return;
+        this.flow = saved;
+        this.original = saved;
       } catch (error) {
-        useUiStore().notify({ intent: "danger", text: `Save failed: ${error.message}` });
+        useUiStore().notify({
+          intent: "danger",
+          text: `Save failed: ${error.message}`,
+        });
       } finally {
         this.saving = false;
       }
@@ -77,7 +113,7 @@ export const useEditorStore = defineStore("editor", {
         id: crypto.randomUUID(),
         type,
         displayName: definition.label,
-        properties: definition.defaults()
+        properties: definition.defaults(),
       };
       insertStep(this.flow, step, position);
       this.selectedStepId = step.id;
@@ -85,11 +121,14 @@ export const useEditorStore = defineStore("editor", {
 
     deleteStep(stepId) {
       if (!canRemoveStep(this.flow, stepId)) {
-        useUiStore().notify({ intent: "warning", text: "Remove the steps inside this condition first." });
+        useUiStore().notify({
+          intent: "warning",
+          text: "Remove the steps inside this condition first.",
+        });
         return;
       }
       removeStep(this.flow, stepId);
       if (this.selectedStepId === stepId) this.selectedStepId = null;
-    }
-  }
+    },
+  },
 });
