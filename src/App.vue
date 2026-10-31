@@ -14,15 +14,12 @@
       <catnip-toggle .modelValue="collaboratorActive" @update:modelValue="collaboratorActive = eventValue($event)">
         Simulate colleague
       </catnip-toggle>
-      <catnip-button appearance="ghost" size="s" left-icon="refresh" @click="resetDemoData">Reset demo data</catnip-button>
-      <catnip-button appearance="secondary" size="s" .disabled="!editor.isDirty" @click="editor.discard()">Discard</catnip-button>
-      <catnip-button
-        appearance="primary"
-        size="s"
-        .disabled="!editor.flow || editor.saving"
-        .loading="editor.saving"
-        @click="editor.save()"
-      >
+      <catnip-button appearance="ghost" size="s" left-icon="refresh" @click="resetDemoData">Reset demo
+        data</catnip-button>
+      <catnip-button appearance="secondary" size="s" .disabled="!editor.isDirty"
+        @click="editor.discard()">Discard</catnip-button>
+      <catnip-button appearance="primary" size="s" .disabled="!editor.flow || editor.saving" .loading="editor.saving"
+        @click="editor.save()">
         Save
       </catnip-button>
     </header>
@@ -43,6 +40,7 @@
       <StepSidebar v-if="editor.selectedStep" :key="editor.selectedStep.id" />
     </main>
 
+    <DeleteStepDialog />
     <ToastHost />
   </div>
 </template>
@@ -56,6 +54,7 @@ import FlowList from "@/components/FlowList.vue";
 import FlowCanvas from "@/components/FlowCanvas.vue";
 import StepSidebar from "@/components/StepSidebar.vue";
 import ToastHost from "@/components/ToastHost.vue";
+import DeleteStepDialog from "@/components/DeleteStepDialog.vue";
 
 const editor = useEditorStore();
 const collaboratorActive = ref(false);
