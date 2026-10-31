@@ -177,7 +177,7 @@ export function removeStep(flow, stepId) {
   );
 
   flow.steps = flow.steps.filter((s) => s.id !== stepId);
-  // flow.connections = flow.connections.filter((c) => c.sourceStepId !== stepId && c.targetStepId !== stepId);
+  
   flow.connections = flow.connections
     .filter((c) => c.sourceStepId !== stepId)
     .map((c) =>
