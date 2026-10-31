@@ -7,13 +7,20 @@ import {
   insertStep,
   removeStep,
 } from "@/logic/graph.js";
-import { STEP_TYPES } from "@/logic/stepTypes.js";
 import { useFlowsStore } from "./flows.js";
 import { useUiStore } from "./ui.js";
+import { getStepOutputs, STEP_TYPES } from "@/logic/stepTypes.js";
+import { findStepsUsingOutputsOf } from "@/logic/references.js";
 
 let latestLoadId = 0;
 /** Deep copy, so the editable flow and the saved snapshot never share objects. */
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+/** The readable label of one of the step's outputs, e.g. "status" → "HTTP status". */
+function outputLabel(step, key) {
+  const output = getStepOutputs(step).find((o) => o.key === key);
+  return output ? output.label : key;
+}
 
 let unsubscribe = null;
 
@@ -25,6 +32,7 @@ export const useEditorStore = defineStore("editor", {
     loading: false,
     saving: false,
     selectedStepId: null,
+    pendingDelete: null,
   }),
 
   getters: {
@@ -50,10 +58,11 @@ export const useEditorStore = defineStore("editor", {
       const requestId = ++latestLoadId;
 
       unsubscribe?.();
-unsubscribe = null;
+      unsubscribe = null;
 
       this.activeFlowId = flowId;
       this.selectedStepId = null;
+      this.pendingDelete = null;
       this.flow = null;
       this.loading = true;
       this.original = null;
@@ -63,7 +72,9 @@ unsubscribe = null;
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
         this.flow = flow;
         this.original = clone(flow);
-        unsubscribe = api.subscribe(flowId, (event) => this.handleRealtimeEvent(event));
+        unsubscribe = api.subscribe(flowId, (event) =>
+          this.handleRealtimeEvent(event),
+        );
       } catch (error) {
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
         useUiStore().notify({
@@ -101,6 +112,7 @@ unsubscribe = null;
     discard() {
       this.flow = clone(this.original);
       this.selectedStepId = null;
+      this.pendingDelete = null;
     },
 
     handleRealtimeEvent(event) {
@@ -124,6 +136,7 @@ unsubscribe = null;
       this.selectedStepId = step.id;
     },
 
+    /** Deletes a step, or asks for confirmation first when other steps use its outputs. */
     deleteStep(stepId) {
       if (!canRemoveStep(this.flow, stepId)) {
         useUiStore().notify({
@@ -132,8 +145,41 @@ unsubscribe = null;
         });
         return;
       }
+
+      const usages = findStepsUsingOutputsOf(this.flow, stepId);
+
+      // nobody depends on this step: delete it right away
+      if (usages.length === 0) {
+        this.removeStepNow(stepId);
+        return;
+      }
+
+      // other steps use its outputs: remember the delete, the dialog asks first
+      const step = getStep(this.flow, stepId);
+      this.pendingDelete = {
+        stepId,
+        displayName: step.displayName,
+        usages: usages.map((usage) => ({
+          stepId: usage.step.id,
+          displayName: usage.step.displayName,
+          outputs: usage.outputKeys.map((key) => outputLabel(step, key)),
+        })),
+      };
+    },
+
+    removeStepNow(stepId) {
       removeStep(this.flow, stepId);
       if (this.selectedStepId === stepId) this.selectedStepId = null;
+    },
+
+    confirmDelete() {
+      if (!this.pendingDelete) return;
+      this.removeStepNow(this.pendingDelete.stepId);
+      this.pendingDelete = null;
+    },
+
+    cancelDelete() {
+      this.pendingDelete = null;
     },
   },
 });
