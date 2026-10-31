@@ -15,6 +15,8 @@ let latestLoadId = 0;
 /** Deep copy, so the editable flow and the saved snapshot never share objects. */
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+let unsubscribe = null;
+
 export const useEditorStore = defineStore("editor", {
   state: () => ({
     activeFlowId: null,
@@ -47,6 +49,9 @@ export const useEditorStore = defineStore("editor", {
 
       const requestId = ++latestLoadId;
 
+      unsubscribe?.();
+unsubscribe = null;
+
       this.activeFlowId = flowId;
       this.selectedStepId = null;
       this.flow = null;
@@ -58,7 +63,7 @@ export const useEditorStore = defineStore("editor", {
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
         this.flow = flow;
         this.original = clone(flow);
-        api.subscribe(flowId, (event) => this.handleRealtimeEvent(event));
+        unsubscribe = api.subscribe(flowId, (event) => this.handleRealtimeEvent(event));
       } catch (error) {
         if (requestId !== latestLoadId) return; // ignore if a newer request has been made
         useUiStore().notify({

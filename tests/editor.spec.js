@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 
 const pending = [];
+
+const subscriptions = [];
+const unsubscribed = [];
+
 const defer = (call, args) => {
   let resolve;
   let reject;
@@ -18,8 +22,11 @@ vi.mock("@/api", () => ({
     getFlow: (...args) => defer("getFlow", args),
     saveFlow: (...args) => defer("saveFlow", args),
     listFlows: async () => [],
-    subscribe: () => () => {}
-  }
+    subscribe: (flowId) => {
+      subscriptions.push(flowId);
+      return () => unsubscribed.push(flowId);
+    },
+  },
 }));
 
 const { useEditorStore } = await import("@/store/editor.js");
@@ -28,15 +35,25 @@ const makeFlow = (id, name) => ({
   id,
   name,
   version: 1,
-  steps: [{ id: `${id}-step`, type: "SendEmail", displayName: "Email", properties: { to: "" } }],
-  connections: []
+  steps: [
+    {
+      id: `${id}-step`,
+      type: "SendEmail",
+      displayName: "Email",
+      properties: { to: "" },
+    },
+  ],
+  connections: [],
 });
 
-const respond = (index, value) => pending[index].resolve(JSON.parse(JSON.stringify(value)));
+const respond = (index, value) =>
+  pending[index].resolve(JSON.parse(JSON.stringify(value)));
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 beforeEach(() => {
   pending.length = 0;
+  subscriptions.length = 0;
+  unsubscribed.length = 0;
   setActivePinia(createPinia());
 });
 
@@ -138,5 +155,18 @@ describe("switching flows quickly (#2)", () => {
     await flush();
 
     expect(editor.flow.name).toBe("Contract signing");
+  });
+});
+
+describe("realtime subscriptions", () => {
+  it("unsubscribes from the previous flow when another one is opened", async () => {
+    const editor = useEditorStore();
+    editor.openFlow("sub-a");
+    respond(0, makeFlow("sub-a", "Flow A"));
+    await flush();
+    editor.openFlow("sub-b");
+
+    expect(subscriptions).toContain("sub-a");
+    expect(unsubscribed).toContain("sub-a");
   });
 });
