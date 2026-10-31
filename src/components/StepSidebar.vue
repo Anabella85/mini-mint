@@ -62,6 +62,9 @@
           .modelValue="value"
           @update:modelValue="step.properties[key] = eventValue($event)"
         ></catnip-input>
+
+        <p v-if="hasReferences(value)" class="preview">Preview: {{ toReadableText(editor.flow, value) }}</p>
+
         <catnip-button appearance="ghost" size="s" left-icon="link" class="align-start" @click="togglePicker(key)">
           {{ openPickerFor === key ? "Close" : "Insert reference" }}
         </catnip-button>
@@ -96,6 +99,7 @@ import { useEditorStore } from "@/store/editor.js";
 import { getStepIcon, getStepTypeLabel } from "@/logic/stepTypes.js";
 import { eventValue } from "@/logic/catnip.js";
 import ReferencePicker from "./ReferencePicker.vue";
+import { parseReferences, toReadableText } from "@/logic/references.js";
 
 const MULTILINE_KEYS = ["body", "condition"];
 
@@ -106,6 +110,10 @@ const jsonErrors = reactive({});
 
 function humanize(key) {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+}
+
+function hasReferences(text) {
+  return parseReferences(text).length > 0;
 }
 
 function togglePicker(key) {
@@ -182,6 +190,12 @@ function updateJson(key, text) {
     flex: 1;
     min-width: 0;
   }
+}
+
+.preview {
+  margin: 0;
+  font: var(--catnip-font-text-s);
+  color: var(--catnip-color-content-neutral-subtle);
 }
 
 .align-start {

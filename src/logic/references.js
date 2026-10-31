@@ -79,3 +79,19 @@ export function findStepsUsingOutputsOf(flow, stepId) {
 
   return usages;
 }
+
+/**
+ * The text with every reference replaced by "Step name › Output label", for display only.
+ * References to a step that no longer exists are shown as "⚠ missing step".
+ */
+export function toReadableText(flow, text) {
+  if (typeof text !== "string") return "";
+
+  return text.replace(REFERENCE_PATTERN, (raw, refStepId, outputKey) => {
+    const step = flow.steps.find((s) => s.id.toLowerCase() === refStepId.toLowerCase());
+    if (!step) return "⚠ missing step";
+
+    const output = getStepOutputs(step).find((o) => o.key === outputKey);
+    return `${step.displayName} › ${output ? output.label : outputKey}`;
+  });
+}
