@@ -90,6 +90,34 @@ export function buildTree(flow) {
 }
 
 /**
+ * The steps that have always finished by the time `stepId` runs, in execution order.
+ *
+ *  - every step before it in the same sequence has run;
+ *  - an If has run before any step in its branches, and so has everything before the If;
+ *  - steps inside the branches of an If we walked past did NOT necessarily run: only one
+ *    branch runs, so none of them is guaranteed after the merge.
+ *
+ * Steps that are not reachable from the start of the flow get an empty list.
+ * @returns {object[]} steps
+ */
+export function getStepsGuaranteedBefore(flow, stepId) {
+  const search = (sequence, before) => {
+    const ran = [...before];
+    for (const node of sequence) {
+      if (node.step.id === stepId) return ran;
+      ran.push(node.step);
+
+      for (const branch of Object.values(node.branches ?? {})) {
+        const branchRan = search(branch, ran);
+        if (branchRan) return branchRan;
+      }
+    }
+    return null;
+  };
+  return search(buildTree(flow), []) ?? [];
+}
+
+/**
  * Inserts `newStep` into the flow.
  * @param {object} flow - mutated in place
  * @param {object} newStep
@@ -177,7 +205,7 @@ export function removeStep(flow, stepId) {
   );
 
   flow.steps = flow.steps.filter((s) => s.id !== stepId);
-  
+
   flow.connections = flow.connections
     .filter((c) => c.sourceStepId !== stepId)
     .map((c) =>
@@ -185,7 +213,7 @@ export function removeStep(flow, stepId) {
         ? { ...c, targetStepId: outgoing.targetStepId }
         : c,
     )
-    .filter(c =>c.targetStepId !== stepId);
+    .filter((c) => c.targetStepId !== stepId);
 
   if (outgoing) {
     incoming.forEach((c) => {
