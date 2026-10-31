@@ -30,6 +30,7 @@ vi.mock("@/api", () => ({
 }));
 
 const { useEditorStore } = await import("@/store/editor.js");
+const { createSeedFlows } = await import("@/api/seed.js");
 
 const makeFlow = (id, name) => ({
   id,
@@ -168,5 +169,59 @@ describe("realtime subscriptions", () => {
 
     expect(subscriptions).toContain("sub-a");
     expect(unsubscribed).toContain("sub-a");
+  });
+});
+
+describe("safe delete", () => {
+  // opens the KYC demo flow through the fake API
+  async function openKyc() {
+    const editor = useEditorStore();
+    editor.openFlow("flow-kyc");
+    respond(0, createSeedFlows().find((f) => f.id === "flow-kyc"));
+    await flush();
+    return editor;
+  }
+  const idOf = (editor, name) => editor.flow.steps.find((s) => s.displayName === name).id;
+
+  it("asks for confirmation when other steps use the outputs, and lists them", async () => {
+    const editor = await openKyc();
+    const crm = idOf(editor, "Create CRM customer");
+    editor.deleteStep(crm);
+
+    expect(editor.flow.steps.some((s) => s.id === crm)).toBe(true);
+    expect(editor.pendingDelete).toEqual({
+      stepId: crm,
+      displayName: "Create CRM customer",
+      usages: [{ stepId: idOf(editor, "Confirmation email"), displayName: "Confirmation email", outputs: ["HTTP status"] }]
+    });
+  });
+
+  it("deletes after confirmation", async () => {
+    const editor = await openKyc();
+    const crm = idOf(editor, "Create CRM customer");
+    editor.deleteStep(crm);
+    editor.confirmDelete();
+
+    expect(editor.flow.steps.some((s) => s.id === crm)).toBe(false);
+    expect(editor.pendingDelete).toBe(null);
+  });
+
+  it("keeps the step when the delete is cancelled", async () => {
+    const editor = await openKyc();
+    const crm = idOf(editor, "Create CRM customer");
+    editor.deleteStep(crm);
+    editor.cancelDelete();
+
+    expect(editor.flow.steps.some((s) => s.id === crm)).toBe(true);
+    expect(editor.pendingDelete).toBe(null);
+  });
+
+  it("deletes right away when nothing uses the outputs", async () => {
+    const editor = await openKyc();
+    const welcome = idOf(editor, "Welcome email");
+    editor.deleteStep(welcome);
+
+    expect(editor.pendingDelete).toBe(null);
+    expect(editor.flow.steps.some((s) => s.id === welcome)).toBe(false);
   });
 });
