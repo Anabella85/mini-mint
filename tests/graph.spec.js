@@ -4,7 +4,9 @@ import {
   canRemoveStep,
   insertStep,
   removeStep,
+  getStepsGuaranteedBefore
 } from "@/logic/graph.js";
+import { createSeedFlows } from "@/api/seed.js";
 
 const step = (id, type = "SendEmail") => ({
   id,
@@ -153,5 +155,64 @@ describe("removeStep", () => {
     removeStep(flow, "t2");
     removeStep(flow, "t1");
     expect(canRemoveStep(flow, "if")).toBe(true);
+  });
+});
+
+describe("getStepsGuaranteedBefore", () => {
+  const before = (flow, id) => getStepsGuaranteedBefore(flow, id).map((s) => s.id);
+
+  it("returns nothing for the first step", () => {
+    expect(before(branchedFlow(), "a")).toEqual([]);
+  });
+
+  it("includes the If and everything before it for a step inside a branch", () => {
+    expect(before(branchedFlow(), "t1")).toEqual(["a", "if"]);
+  });
+
+  it("includes earlier steps of the same branch", () => {
+    expect(before(branchedFlow(), "t2")).toEqual(["a", "if", "t1"]);
+  });
+
+  it("never includes the other branch", () => {
+    expect(before(branchedFlow(), "f1")).toEqual(["a", "if"]);
+  });
+
+  it("does not include branch steps after the merge, because only one branch ran", () => {
+    expect(before(branchedFlow(), "z")).toEqual(["a", "if"]);
+  });
+
+  it("returns nothing for an unknown step", () => {
+    expect(before(branchedFlow(), "missing")).toEqual([]);
+  });
+
+    // demo flows: find a step by its name and return the names of the steps before it
+  const namesBefore = (flowId, stepName) => {
+    const flow = createSeedFlows().find((f) => f.id === flowId);
+    const step = flow.steps.find((s) => s.displayName === stepName);
+    return getStepsGuaranteedBefore(flow, step.id).map((s) => s.displayName);
+  };
+
+  it("handles nested conditions (Age check demo flow)", () => {
+    expect(namesBefore("flow-age", "Register adult customer")).toEqual([
+      "Verify identity",
+      "18 or older?",
+      "Lives in Norway?"
+    ]);
+    expect(namesBefore("flow-age", "Audit log")).toEqual(["Verify identity", "18 or older?"]);
+  });
+
+  it("does not offer the CRM webhook to the confirmation email (KYC demo flow)", () => {
+    expect(namesBefore("flow-kyc", "Welcome email")).toEqual([
+      "Contact details",
+      "Verify identity",
+      "Norwegian resident?",
+      "Create CRM customer"
+    ]);
+    expect(namesBefore("flow-kyc", "Confirmation email")).toEqual([
+      "Contact details",
+      "Verify identity",
+      "Norwegian resident?",
+      "Sign customer agreement"
+    ]);
   });
 });
