@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAvailableOutputs, makeReference } from "@/logic/references.js";
+import { findStepsUsingOutputsOf, getAvailableOutputs, makeReference } from "@/logic/references.js";
 import { createSeedFlows } from "@/api/seed.js";
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
@@ -52,5 +52,39 @@ describe("ReferencePicker", () => {
 
     await items[3].trigger("click");
     expect(wrapper.emitted("select")).toEqual([[makeReference(stepId(editor.flow, "Verify identity"), "fullName")]]);
+  });
+});
+
+describe("findStepsUsingOutputsOf", () => {
+  // returns [step name, output keys] pairs, so results are easy to read
+  const usages = (flow, name) =>
+    findStepsUsingOutputsOf(flow, stepId(flow, name)).map((u) => [u.step.displayName, u.outputKeys]);
+
+  it("finds references in plain strings, in nested objects and in conditions", () => {
+    const flow = kycFlow();
+    expect(usages(flow, "Verify identity")).toEqual([
+      ["Norwegian resident?", ["country"]],
+      ["Create CRM customer", ["fullName", "nationalId"]],
+      ["Welcome email", ["fullName"]],
+      ["Notify compliance", ["fullName"]],
+      ["Sign customer agreement", ["fullName"]]
+    ]);
+  });
+
+  it("finds references inside arrays, also written without spaces", () => {
+    const flow = kycFlow();
+    const extra = flow.steps.find((s) => s.displayName === "Extra due diligence");
+    extra.properties.fields.push({ key: "name", label: `Name: {{steps.${stepId(flow, "Contact details")}.output.email}}` });
+    expect(usages(flow, "Contact details")).toContainEqual(["Extra due diligence", ["email"]]);
+  });
+
+  it("returns nothing when no step uses the outputs", () => {
+    const flow = kycFlow();
+    expect(usages(flow, "Welcome email")).toEqual([]);
+  });
+
+  it("does not match a reference to a different step", () => {
+    const flow = kycFlow();
+    expect(usages(flow, "Notify compliance")).toEqual([]);
   });
 });

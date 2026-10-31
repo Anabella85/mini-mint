@@ -47,3 +47,35 @@ export function getAvailableOutputs(flow, stepId) {
     }))
     .filter((group) => group.outputs.length);
 }
+
+/** Every string inside a value, however deeply it is nested in objects and arrays. */
+function collectStrings(value, into = []) {
+  if (typeof value === "string") into.push(value);
+  else if (Array.isArray(value)) value.forEach((item) => collectStrings(item, into));
+  else if (value && typeof value === "object") Object.values(value).forEach((item) => collectStrings(item, into));
+  return into;
+}
+
+/**
+ * The other steps whose properties reference an output of `stepId`.
+ * Looks at every property, including nested objects (webhook body) and arrays (form fields).
+ * @returns {{ step: object, outputKeys: string[] }[]}
+ */
+export function findStepsUsingOutputsOf(flow, stepId) {
+  const usages = [];
+
+  for (const step of flow.steps) {
+    if (step.id === stepId) continue;
+
+    const references = collectStrings(step.properties).flatMap(parseReferences);
+    const outputKeys = references
+      .filter((ref) => ref.stepId.toLowerCase() === stepId.toLowerCase())
+      .map((ref) => ref.outputKey);
+
+    if (outputKeys.length) {
+      usages.push({ step, outputKeys: [...new Set(outputKeys)] });
+    }
+  }
+
+  return usages;
+}
